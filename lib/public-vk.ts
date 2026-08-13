@@ -49,7 +49,7 @@ async function fetchText(url:string){
 }
 
 async function publicSearch(query:string,kind:MediaKind,page:number){
- const scoped=kind==='video'?`${query} video`: `${query} photo`
+ const scoped=kind==='video'?`${query} video`:`${query} photo`
  const q1=`site:vk.com ${scoped}`
  const q2=kind==='video'?`site:vkvideo.ru ${query}`:`site:vk.com ${query} album photo`
  const first=1+Math.max(0,page)*20
@@ -125,7 +125,12 @@ export async function searchPublicMedia(query:string,kind:MediaKind,page=0){
 function profileLinks(html:string,actor:string){
  const normalized=unescapeHtml(html);const out:{url:string;kind:MediaKind}[]=[];const seen=new Set<string>()
  for(const m of normalized.matchAll(/href=["']([^"']+)["']/gi)){
-  try{const u=new URL(m[1],`https://vk.com/${actor}`);if(!allowedHost(u.hostname))continue;const s=u.toString();const kind:/video|clip/i.test(u.pathname+u.search)?MediaKind:/photo|album/i.test(u.pathname+u.search)?MediaKind:null=/video|clip/i.test(u.pathname+u.search)?'video':/photo|album/i.test(u.pathname+u.search)?'image':null;if(kind&&!seen.has(s)){seen.add(s);out.push({url:s,kind})}}catch{}
+  try{
+   const u=new URL(m[1],`https://vk.com/${actor}`);if(!allowedHost(u.hostname))continue
+   const s=u.toString();const p=u.pathname+u.search
+   const kind:MediaKind|null=/video|clip/i.test(p)?'video':/photo|album/i.test(p)?'image':null
+   if(kind&&!seen.has(s)){seen.add(s);out.push({url:s,kind})}
+  }catch{}
  }
  return out.slice(0,24)
 }
@@ -137,7 +142,7 @@ export async function accountPublicMedia(actors:string[],page=0){
   if(!clean)continue
   const profile=page===0?await fetchText(`https://vk.com/${encodeURIComponent(clean)}`):null
   const direct=profile?profileLinks(profile.html,clean):[]
-  const [photos,videos]=await Promise.all([publicSearch(`${clean}`, 'image',page),publicSearch(`${clean}`, 'video',page)])
+  const [photos,videos]=await Promise.all([publicSearch(clean,'image',page),publicSearch(clean,'video',page)])
   const targets=[...direct,...photos.map(url=>({url,kind:'image' as const})),...videos.map(url=>({url,kind:'video' as const}))]
   const unique=new Map<string,MediaKind>();for(const t of targets)if(!unique.has(t.url))unique.set(t.url,t.kind)
   const normalized=await Promise.all([...unique].slice(0,MAX_PAGES).map(([url,kind])=>normalizePage(url,kind)))
@@ -150,7 +155,4 @@ export async function accountPublicMedia(actors:string[],page=0){
 export function encodeCursor(page:number){return Buffer.from(JSON.stringify({page}),'utf8').toString('base64url')}
 export function decodeCursor(value:string|null){if(!value)return 0;try{const n=Number(JSON.parse(Buffer.from(value,'base64url').toString('utf8'))?.page||0);return Number.isFinite(n)&&n>=0?n:0}catch{return 0}}
 
-export async function publicStatus(){
- const probe=await publicSearch('photography','image',0)
- return {ok:true,mode:'public-web',tokenRequired:false,searchReachable:probe.length>0,discovered:probe.length}
-}
+export async function publicStatus(){const probe=await publicSearch('photography','image',0);return {ok:true,mode:'public-web',tokenRequired:false,searchReachable:probe.length>0,discovered:probe.length}}
