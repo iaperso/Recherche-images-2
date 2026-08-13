@@ -1,14 +1,12 @@
 import {NextRequest,NextResponse} from 'next/server'
-import {bestPhoto,cursorDecode,cursorEncode,postBase,vk,VKObj} from '../../../lib/vk'
+import {decodeCursor,searchPublicMedia} from '../../../lib/public-vk'
 
 export async function GET(req:NextRequest){
- const q=(req.nextUrl.searchParams.get('q')||'').trim();if(!q)return NextResponse.json({error:'Recherche vide.'},{status:400})
- const offset=cursorDecode<number>(req.nextUrl.searchParams.get('cursor'),0)
+ const q=(req.nextUrl.searchParams.get('q')||'').trim()
+ if(!q)return NextResponse.json({error:'Recherche vide.'},{status:400})
+ const page=decodeCursor(req.nextUrl.searchParams.get('cursor'))
  try{
-  const r=await vk('photos.search',{q,sort:0,offset,count:80,radius:0})
-  const items:Array<VKObj>=Array.isArray(r?.items)?r.items:[]
-  const posts=items.flatMap(p=>{const image=bestPhoto(p);if(!image)return[];return[{...postBase(Number(p.owner_id),Number(p.id),Number(p.date),p.text||'',p.likes?.count||0,p.reposts?.count||0),images:[image]}]})
-  const next=items.length?offset+items.length:null
-  return NextResponse.json({posts,cursor:next===null?null:cursorEncode(next)},{headers:{'Cache-Control':'private, no-store'}})
- }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Erreur VK'},{status:502})}
+  const result=await searchPublicMedia(q,'image',page)
+  return NextResponse.json({...result,source:'public-web'},{headers:{'Cache-Control':'no-store'}})
+ }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Recherche publique indisponible'},{status:502})}
 }
