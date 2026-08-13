@@ -1,4 +1,12 @@
 import {NextResponse} from 'next/server'
-const UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0 Safari/537.36'
-async function probe(name:string,url:string){const c=new AbortController();const t=setTimeout(()=>c.abort(),9000);try{const r=await fetch(url,{headers:{'user-agent':UA,'accept':'application/json,text/plain,*/*','origin':'https://live.vkvideo.ru','referer':'https://live.vkvideo.ru/search'},cache:'no-store',redirect:'follow',signal:c.signal});const text=await r.text();return{name,status:r.status,ok:r.ok,type:r.headers.get('content-type'),body:text.slice(0,5000)}}catch(e){return{name,status:0,ok:false,error:e instanceof Error?e.message:'failed'}}finally{clearTimeout(t)}}
-export async function GET(){const q='music';const legacy=`search_query=${encodeURIComponent(q)}&limit=5&offset=0`;const ps:any[]=[];for(let v=1;v<=8;v++)ps.push(probe(`public-v${v}`,`https://api.live.vkvideo.ru/v${v}/search/public_video_stream/blog/?${legacy}`));ps.push(probe('channel-camel','https://api.live.vkvideo.ru/v8/search/channel?searchQuery=music&limit=5&offset=0'));ps.push(probe('category-camel','https://api.live.vkvideo.ru/v8/search/stream_category?searchQuery=music&limit=5&offset=0'));const probes=await Promise.all(ps);return NextResponse.json({ok:true,probes},{headers:{'Cache-Control':'no-store'}})}
+
+export async function GET(){
+ return NextResponse.json({
+  ok:true,
+  mode:'public-web',
+  tokenRequired:false,
+  photos:'vk-cdn-multi-source',
+  videos:'vk-video-live-api',
+  accounts:'public-vk'
+ },{headers:{'Cache-Control':'no-store'}})
+}
