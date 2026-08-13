@@ -1,16 +1,32 @@
 export type VKObj=Record<string,any>
 const VERSION=process.env.VK_API_VERSION||'5.199'
 
+export function getVkToken(){
+ return process.env.VK_SERVICE_TOKEN||process.env.VK_ACCESS_TOKEN||process.env.VK_TOKEN||''
+}
+
+export function getVkTokenSource(){
+ if(process.env.VK_SERVICE_TOKEN)return 'VK_SERVICE_TOKEN'
+ if(process.env.VK_ACCESS_TOKEN)return 'VK_ACCESS_TOKEN'
+ if(process.env.VK_TOKEN)return 'VK_TOKEN'
+ return null
+}
+
 export async function vk(method:string,params:Record<string,string|number|boolean|undefined>){
- const token=process.env.VK_SERVICE_TOKEN
- if(!token)throw new Error('VK_SERVICE_TOKEN manquant')
+ const token=getVkToken()
+ if(!token)throw new Error('Jeton VK manquant. Configure VK_SERVICE_TOKEN ou VK_ACCESS_TOKEN dans Vercel.')
  const body=new URLSearchParams()
  for(const [k,v] of Object.entries(params))if(v!==undefined)body.set(k,String(v))
  body.set('access_token',token);body.set('v',VERSION)
  const r=await fetch(`https://api.vk.com/method/${method}`,{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body,cache:'no-store'})
- const data=await r.json()
+ let data:any
+ try{data=await r.json()}catch{throw new Error(`VK HTTP ${r.status}: réponse invalide`)}
  if(!r.ok)throw new Error(`VK HTTP ${r.status}`)
- if(data.error)throw new Error(data.error.error_msg||`VK error ${data.error.error_code}`)
+ if(data.error){
+  const code=data.error.error_code
+  const message=data.error.error_msg||`VK error ${code}`
+  throw new Error(code?`VK ${code}: ${message}`:message)
+ }
  return data.response
 }
 
