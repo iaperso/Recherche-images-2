@@ -35,25 +35,31 @@ function authorFromUrl(url:string){const id=idFromUrl(url);if(!id)return'vk';con
 function searchPageUrls(q:string,kind:DirectKind,page:number){
  const section=kind==='image'?'photos':'videos'
  const offset=Math.max(0,page)*40
- return [
-  `https://vk.com/search?c%5Bq%5D=${encodeURIComponent(q)}&c%5Bsection%5D=${section}&c%5Boffset%5D=${offset}`,
-  ...(kind==='video'?[`https://vk.com/search?c%5Bq%5D=${encodeURIComponent(q)}&c%5Bsection%5D=video&c%5Boffset%5D=${offset}`]:[])
- ]
+ const scoped=kind==='image'?`site:vk.com ${q} photo`:`site:vk.com ${q} video`
+ const mobile=`https://m.vk.com/search?c%5Bq%5D=${encodeURIComponent(q)}&c%5Bsection%5D=${section}&c%5Boffset%5D=${offset}`
+ const desktop=`https://vk.com/search?c%5Bq%5D=${encodeURIComponent(q)}&c%5Bsection%5D=${section}&c%5Boffset%5D=${offset}`
+ const brave=`https://search.brave.com/search?q=${encodeURIComponent(scoped)}&source=web&offset=${Math.max(0,page)}`
+ const out=[desktop,mobile,brave]
+ if(kind==='video'){
+  out.push(`https://vk.com/search?c%5Bq%5D=${encodeURIComponent(q)}&c%5Bsection%5D=video&c%5Boffset%5D=${offset}`)
+  out.push(`https://search.brave.com/search?q=${encodeURIComponent(`site:vkvideo.ru ${q}`)}&source=web&offset=${Math.max(0,page)}`)
+ }
+ return out
 }
 
 function extractImageUrls(html:string){
  const text=decode(html);const out:string[]=[];const seen=new Set<string>()
- for(const m of text.matchAll(/https?:\/\/[^\s"'<>\\]+/gi)){const u=clean(m[0]);if(mediaImage(u)&&cdnImage(u)&&!seen.has(u)){seen.add(u);out.push(u)}if(out.length>=48)break}
+ for(const m of text.matchAll(/https?:\/\/[^\s"'<>\\]+/gi)){const u=clean(m[0]);if(mediaImage(u)&&cdnImage(u)&&!seen.has(u)){seen.add(u);out.push(u)}if(out.length>=64)break}
  return out
 }
 
 function extractMediaLinks(html:string,kind:DirectKind){
  const text=decode(html);const out:string[]=[];const seen=new Set<string>()
- const add=(raw:string)=>{try{const u=new URL(raw,'https://vk.com');const s=u.toString();const ok=kind==='image'?/(?:\/|=)photo-?\d+_\d+/i.test(s):/(?:\/|=)(?:video|clip)-?\d+_\d+/i.test(s);if(ok&&!seen.has(s)){seen.add(s);out.push(s)}}catch{}}
+ const add=(raw:string)=>{try{const u=new URL(raw,'https://vk.com');const s=u.toString();const host=u.hostname.toLowerCase();if(!(host==='vk.com'||host==='m.vk.com'||host.endsWith('.vk.com')||host==='vkvideo.ru'||host.endsWith('.vkvideo.ru')))return;const ok=kind==='image'?/(?:\/|=)photo-?\d+_\d+/i.test(s):/(?:\/|=)(?:video|clip)-?\d+_\d+/i.test(s);if(ok&&!seen.has(s)){seen.add(s);out.push(s)}}catch{}}
  for(const m of text.matchAll(/href=["']([^"']+)["']/gi))add(m[1])
- const rawRe=kind==='image'?/(?:https?:\/\/vk\.com)?\/photo-?\d+_\d+/gi:/(?:https?:\/\/vk\.com)?\/(?:video|clip)-?\d+_\d+/gi
+ const rawRe=kind==='image'?/(?:https?:\/\/(?:m\.)?vk\.com)?\/photo-?\d+_\d+/gi:/(?:https?:\/\/(?:(?:m\.)?vk\.com|vkvideo\.ru))?\/(?:video|clip)-?\d+_\d+/gi
  for(const m of text.matchAll(rawRe))add(m[0])
- return out.slice(0,24)
+ return out.slice(0,36)
 }
 
 async function normalizeVideoPage(url:string):Promise<Post|null>{
@@ -81,7 +87,7 @@ export async function searchVkDirect(q:string,kind:DirectKind,page=0){
  }
  const links:string[]=[];const seen=new Set<string>()
  for(const p of pages)for(const u of extractMediaLinks(p.html,'video'))if(!seen.has(u)){seen.add(u);links.push(u)}
- const items=await Promise.all(links.slice(0,14).map(normalizeVideoPage))
+ const items=await Promise.all(links.slice(0,18).map(normalizeVideoPage))
  const posts=items.filter((x):x is Post=>Boolean(x))
  return{posts,cursor:links.length?encodePage(page+1):null,scanned:pages.length,source:'vk-public-search'}
 }
