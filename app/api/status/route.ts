@@ -1,6 +1,18 @@
 import {NextResponse} from 'next/server'
 
 const UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0 Safari/537.36'
-function decode(v:string){return v.replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/\\u0026/g,'&').replace(/\\\//g,'/')}
-async function probe(name:string,url:string){const c=new AbortController();const t=setTimeout(()=>c.abort(),7000);try{const r=await fetch(url,{headers:{'user-agent':UA,'accept':'text/html,application/xhtml+xml','accept-language':'ru-RU,ru;q=0.9,en;q=0.7'},cache:'no-store',redirect:'follow',signal:c.signal});const text=decode(await r.text());const inputs=[...text.matchAll(/<input\b[^>]*>/gi)].slice(0,12).map(x=>x[0].slice(0,300));const forms=[...text.matchAll(/<form\b[^>]*>/gi)].slice(0,8).map(x=>x[0].slice(0,300));const api=[...new Set((text.match(/https?:\/\/[^\s"'<>]+|\/[\w.-]*(?:search|api|graphql)[\w?&=./%-]*/gi)||[]).filter(x=>/search|api|graphql/i.test(x)).slice(0,30))];return{name,status:r.status,ok:r.ok,length:text.length,finalUrl:r.url,records:(text.match(/\/record\/[0-9a-f-]{16,}/gi)||[]).length,recordUrls:(text.match(/https?:\/\/(?:[\w.-]+\.)?vkvideo\.ru\/[^\s"'<>]*\/record\/[0-9a-f-]{16,}[^\s"'<>]*/gi)||[]).slice(0,8),inputs,forms,api}}catch(e){return{name,ok:false,error:e instanceof Error?e.message:'failed'}}finally{clearTimeout(t)}}
-export async function GET(){const q='music';const urls=[['search','https://live.vkvideo.ru/search'],['records','https://live.vkvideo.ru/search/records'],['q',`https://live.vkvideo.ru/search/records?q=${encodeURIComponent(q)}`],['query',`https://live.vkvideo.ru/search/records?query=${encodeURIComponent(q)}`],['text',`https://live.vkvideo.ru/search/records?text=${encodeURIComponent(q)}`],['search-param',`https://live.vkvideo.ru/search/records?search=${encodeURIComponent(q)}`]] as const;const probes=await Promise.all(urls.map(([n,u])=>probe(n,u)));return NextResponse.json({ok:true,mode:'live-vkvideo-diagnostic',probes},{headers:{'Cache-Control':'no-store'}})}
+async function get(url:string,timeout=8000){const c=new AbortController();const t=setTimeout(()=>c.abort(),timeout);try{const r=await fetch(url,{headers:{'user-agent':UA,'accept':'text/html,application/javascript,*/*','accept-language':'ru-RU,ru;q=0.9,en;q=0.7'},cache:'no-store',redirect:'follow',signal:c.signal});if(!r.ok)return null;return{url:r.url,text:await r.text(),status:r.status}}catch{return null}finally{clearTimeout(t)}}
+function uniq<T>(xs:T[]){return [...new Set(xs)]}
+export async function GET(){
+ const page=await get('https://live.vkvideo.ru/search/records')
+ if(!page)return NextResponse.json({ok:false,error:'VK Video Live inaccessible'},{status:502})
+ const srcs=uniq([...page.text.matchAll(/<script\b[^>]*src=["']([^"']+)["']/gi)].map(m=>{try{return new URL(m[1],page.url).toString()}catch{return''}}).filter(Boolean)).slice(-18)
+ const files=(await Promise.all(srcs.map(u=>get(u,10000)))).filter(Boolean) as {url:string;text:string;status:number}[]
+ const hits:any[]=[]
+ for(const f of files){
+  const paths=uniq((f.text.match(/(?:https:\/\/api\.live\.vkvideo\.ru)?\/v\d+\/[A-Za-z0-9_?&=./:${}%,-]{2,220}/g)||[]).filter(x=>/search|record|stream|category|catalog|video/i.test(x))).slice(0,30)
+  const strings=uniq((f.text.match(/["'`]([^"'`]{0,100}(?:search|records)[^"'`]{0,120})["'`]/gi)||[]).map(x=>x.slice(1,-1)).filter(x=>/api|v1|v2|search|record/i.test(x))).slice(0,30)
+  if(paths.length||strings.length)hits.push({script:f.url,paths,strings})
+ }
+ return NextResponse.json({ok:true,scriptCount:srcs.length,scripts:srcs,hits},{headers:{'Cache-Control':'no-store'}})
+}
