@@ -4,7 +4,7 @@ import {useEffect,useMemo,useState} from 'react'
 
 type Book={topicId:number;title:string;description:string;genres:string[];publication:string|null;tomes:string|null;origin:string|null;language:string|null;sourceUrl:string;integratedAt:string|null;integrationOrder:number}
 
-function uniqBooks(items:Book[]){const m=new Map<number,Book>();for(const x of items)m.set(x.topicId,x);return [...m.values()].sort((a,b)=>(b.integratedAt?Date.parse(b.integratedAt):b.integrationOrder)-(a.integratedAt?Date.parse(a.integratedAt):a.integrationOrder))}
+function uniqBooks(items:Book[]){const m=new Map<number,Book>();for(const x of items)m.set(x.topicId,x);return [...m.values()].sort((a,b)=>b.integrationOrder-a.integrationOrder)}
 function labelDate(b:Book){if(b.integratedAt)return new Intl.DateTimeFormat('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(b.integratedAt));return `ordre VK #${b.integrationOrder}`}
 
 export default function BooksPanel({query}:{query:string}){
@@ -13,8 +13,8 @@ export default function BooksPanel({query}:{query:string}){
  useEffect(()=>{void load(0,false)},[])
  const visible=useMemo(()=>{const q=query.trim().toLocaleLowerCase('fr');return books.filter(b=>(!category||b.genres.some(g=>g===category))&&(!q||(b.title+' '+b.description+' '+b.genres.join(' ')).toLocaleLowerCase('fr').includes(q)))},[books,category,query])
  return <section className="booksWrap">
-  <div className="booksHead"><div><strong>Au Phil Des Bulles</strong><small>Bandes dessinées en français · classement par intégration VK</small></div><select value={category} onChange={e=>setCategory(e.target.value)}><option value="">Toutes les classifications</option>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
-  <div className="booksNotice">Les fiches et métadonnées viennent de l’index public du groupe VK. Un PDF direct n’est affiché que si sa diffusion autorisée peut être vérifiée ; sinon la fiche VK reste accessible.</div>
+  <div className="booksHead"><div><strong>Au Phil Des Bulles</strong><small>Bandes dessinées en français · ordre d’intégration VK</small></div><select value={category} onChange={e=>setCategory(e.target.value)}><option value="">Toutes les classifications</option>{categories.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
+  <div className="booksNotice">Les fiches et métadonnées viennent de l’index public du groupe VK. La date exacte est affichée lorsqu’elle est publiée dans l’index ; sinon l’ordre de création du sujet VK est conservé. Un PDF direct n’est affiché que si sa diffusion autorisée peut être vérifiée ; sinon la fiche VK reste accessible.</div>
   {error&&<div className="error">{error}</div>}
   <div className="bookGrid">{visible.map(b=><article className="bookCard" key={b.topicId}><div className="bookTop"><span>BD</span><small>{labelDate(b)}</small></div><h2>{b.title}</h2><div className="bookTags">{b.genres.map(g=><span key={g}>{g}</span>)}</div><dl>{b.publication&&<><dt>Parution</dt><dd>{b.publication}</dd></>}{b.tomes&&<><dt>Tomes</dt><dd>{b.tomes}</dd></>}{b.origin&&<><dt>Origine</dt><dd>{b.origin}</dd></>}{b.language&&<><dt>Langue</dt><dd>{b.language}</dd></>}</dl><button onClick={()=>window.open(b.sourceUrl,'_blank','noopener,noreferrer')}>Voir la fiche VK ↗</button></article>)}</div>
   {!loading&&!visible.length&&<div className="booksEmpty">Aucune BD trouvée pour ce filtre.</div>}
