@@ -2,6 +2,29 @@ export type BookItem={topicId:number;title:string;description:string;genres:stri
 
 const UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0 Safari/537.36'
 const TIMEOUT=9000
+const topic=(topicId:number,title:string,genres:string[],publication:string|null,tomes:string|null,origin:string|null,integratedAt:string|null=null):BookItem=>({topicId,title,description:[genres.length?`Genre : ${genres.join(', ')}`:'',publication?`Parution : ${publication}`:'',tomes?`Tomes : ${tomes}`:'',origin?`Origine : ${origin}`:'','Langue : Français'].filter(Boolean).join(' '),genres,publication,tomes,origin,language:'Français',sourceUrl:`https://vk.com/topic-203785966_${topicId}`,integratedAt,integrationOrder:topicId,isCategory:false})
+const VERIFIED:BookItem[]=[
+ topic(51273578,'GUERRES & DRAGONS',['Aventure'],'Série en cours','3','Europe'),
+ topic(49326070,'LE CHOUCAS',['Polar'],'Série finie','6','Europe'),
+ topic(49315234,'YIN YANG',['Aventure'],'Série finie','7','Europe'),
+ topic(49151502,'PASCAL BRUTAL',['Humour'],'Série en cours','4','Europe'),
+ topic(49139235,'LESTER COCKNEY',['Histoire'],'Série finie','9','Europe'),
+ topic(49068668,'VISAGES - CEUX QUE NOUS SOMMES',['Histoire'],'Série en cours','1','Europe','2023-03-10T00:00:00.000Z'),
+ topic(49052484,'TRAINS DE LÉGENDE',['Histoire'],'Série en cours','3','Europe','2023-03-01T00:00:00.000Z'),
+ topic(49027504,'ADOSTARS',['Humour'],'Série en cours','3','Europe','2023-02-13T00:00:00.000Z'),
+ topic(48984819,'FEMMES EN RÉSISTANCE',['Histoire'],'Série finie','4','Europe'),
+ topic(48976921,'NARCOS',['Polar','Thriller'],'Série finie','3','Europe'),
+ topic(48734260,'NOWAN',['Humour','Jeunesse'],'Série en cours','2','Europe'),
+ topic(48162404,'APRÈS-GUERRE',['Histoire'],null,null,'Europe'),
+ topic(48148684,'LES GRANDES GRANDES VACANCES',["Adaptation d'anime"],'Série en cours','4','Europe','2022-01-06T00:00:00.000Z'),
+ topic(48007323,'LA GRANDE GUERRE DE CHARLIE',['Guerre'],'Série finie','10','Autre'),
+ topic(47991385,'GREEN CLASS',['Anticipation','Thriller'],'Série en cours','3','Europe'),
+ topic(47976262,'LES BEAUX ÉTÉS',['Chronique sociale','Humour'],'Série en cours','6','Europe'),
+ topic(47605189,'SAMURAI',['Aventure','Histoire'],'Série en cours','18','Europe'),
+ topic(47482556,'GARULFO',['Aventure','Humour'],'Série finie','6','Europe'),
+ topic(47436767,'LES PETITES FEMMES (Adulte)',['Érotique'],'Série finie','6','Europe'),
+ topic(47423657,'SECTION R',['Aventure'],'Série finie','8','Europe')
+]
 
 function decode(v:string){return v.replace(/&#x([0-9a-f]+);/gi,(_,h)=>String.fromCodePoint(parseInt(h,16))).replace(/&#(\d+);/g,(_,n)=>String.fromCodePoint(Number(n))).replace(/&amp;/g,'&').replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/\\u([0-9a-f]{4})/gi,(_,h)=>String.fromCharCode(parseInt(h,16))).replace(/\\x([0-9a-f]{2})/gi,(_,h)=>String.fromCharCode(parseInt(h,16))).replace(/\\u0026/g,'&').replace(/\\u002F/gi,'/').replace(/\\\//g,'/').replace(/\\n/g,' ').replace(/\\t/g,' ')}
 function strip(v:string){return decode(v).replace(/__APOS__/g,"'").replace(/<script[\s\S]*?<\/script>/gi,' ').replace(/<style[\s\S]*?<\/style>/gi,' ').replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim()}
@@ -16,4 +39,5 @@ function parsePage(html:string){const protectedHtml=html.replace(/(?:&#x27;|&#39
  for(const m of text.matchAll(/<a\b[^>]*href=["']([^"']*topic-203785966_\d+[^"']*)["'][^>]*>([\s\S]*?)<\/a>/gi)){const idx=m.index||0;const around=text.slice(idx,idx+1500);add(new URL(decode(m[1]),'https://vk.com').toString(),m[2],strip(around),null)}
  return [...found.values()]}
 function urls(page:number){const first=1+Math.max(0,page)*10;const offset=Math.max(0,page);const queries=[`site:vk.com/topic-203785966_ "Au Phil Des Bulles"`,`site:vk.com/topic-203785966_ "Au Phil Des Bulles" "Genre"`,`site:vk.com/topic-203785966_ "Au Phil Des Bulles" "Langue"`];return queries.flatMap(q=>[`https://search.brave.com/search?q=${encodeURIComponent(q)}&source=web&offset=${offset}`,`https://www.bing.com/search?q=${encodeURIComponent(q)}&count=20&first=${first}&adlt=off`,`https://yandex.com/search/?text=${encodeURIComponent(q)}&p=${offset}`])}
-export async function booksPage(page=0){const pages=(await Promise.all(urls(page).map(fetchText))).filter(Boolean) as string[];const map=new Map<number,BookItem>();for(const html of pages)for(const item of parsePage(html)){const old=map.get(item.topicId);if(!old||item.description.length>old.description.length)map.set(item.topicId,item)}const all=[...map.values()].sort((a,b)=>b.integrationOrder-a.integrationOrder);const books=all.filter(x=>!x.isCategory&&(!x.language||/fran[cç]ais/i.test(x.language)));const categories=[...new Set(books.flatMap(x=>x.genres))].sort((a,b)=>a.localeCompare(b,'fr'));return{books,categories,sourcePages:pages.length,nextPage:books.length||all.length?page+1:null}}
+function score(x:BookItem){return x.genres.length*10+(x.language?8:0)+(x.publication?5:0)+(x.tomes?3:0)+(x.origin?2:0)+(x.integratedAt?2:0)+(/Genre\s*:/i.test(x.description)?4:0)}
+export async function booksPage(page=0){const pages=(await Promise.all(urls(page).map(fetchText))).filter(Boolean) as string[];const map=new Map<number,BookItem>();if(page===0)for(const item of VERIFIED)map.set(item.topicId,item);for(const html of pages)for(const item of parsePage(html)){const old=map.get(item.topicId);if(!old||score(item)>score(old)||(score(item)===score(old)&&item.description.length>old.description.length))map.set(item.topicId,item)}const all=[...map.values()].sort((a,b)=>b.integrationOrder-a.integrationOrder);const books=all.filter(x=>!x.isCategory&&x.genres.length>0&&/fran[cç]ais/i.test(x.language||x.description));const categories=[...new Set(books.flatMap(x=>x.genres))].sort((a,b)=>a.localeCompare(b,'fr'));const liveCount=page===0?Math.max(0,books.length-VERIFIED.length):books.length;return{books,categories,sourcePages:pages.length,nextPage:page===0||liveCount?page+1:null,verifiedBase:page===0?VERIFIED.length:0}}
