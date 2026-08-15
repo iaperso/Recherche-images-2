@@ -19,10 +19,15 @@ const VERIFIED:BookItem[]=[
  topic(48162404,'APRÈS-GUERRE',['Histoire'],null,null,'Europe'),
  topic(48148684,'LES GRANDES GRANDES VACANCES',["Adaptation d'anime"],'Série en cours','4','Europe','2022-01-06T00:00:00.000Z'),
  topic(48007323,'LA GRANDE GUERRE DE CHARLIE',['Guerre'],'Série finie','10','Autre'),
+ topic(47994262,'LE LINCEUL',['Aventure'],'Série finie','4','Europe'),
  topic(47991385,'GREEN CLASS',['Anticipation','Thriller'],'Série en cours','3','Europe'),
  topic(47976262,'LES BEAUX ÉTÉS',['Chronique sociale','Humour'],'Série en cours','6','Europe'),
  topic(47605189,'SAMURAI',['Aventure','Histoire'],'Série en cours','18','Europe'),
+ topic(47548854,'HAPPY BOOKS (adulte)',['Humour'],'Série finie','5','Europe'),
  topic(47482556,'GARULFO',['Aventure','Humour'],'Série finie','6','Europe'),
+ topic(47459620,'ARNO',['Histoire'],'Série abandonnée','6','Europe'),
+ topic(47442008,'SERPENTERS',['Fantastique'],'Série finie','2','Europe'),
+ topic(47441883,'ANTOINE SEVRES',['Aventure'],'Série finie','2','Europe'),
  topic(47436767,'LES PETITES FEMMES (Adulte)',['Érotique'],'Série finie','6','Europe'),
  topic(47423657,'SECTION R',['Aventure'],'Série finie','8','Europe')
 ]
