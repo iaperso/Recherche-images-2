@@ -7,6 +7,7 @@ export async function GET(req:NextRequest){
  try{
   const detail=await bookDetail(topicId)
   const confirmedFormat=detail.fileName?.toLowerCase().endsWith('.epub')?'epub':detail.fileName?.toLowerCase().endsWith('.pdf')?'pdf':detail.authorizedUrl?.toLowerCase().includes('.epub')?'epub':detail.authorizedUrl?.toLowerCase().includes('.pdf')?'pdf':null
-  return NextResponse.json({...detail,format:confirmedFormat},{headers:{'Cache-Control':'public, max-age=900, stale-while-revalidate=86400'}})
+  const confirmedDetected=!!confirmedFormat||!!detail.fileName||!!detail.authorizedUrl
+  return NextResponse.json({...detail,format:confirmedFormat,fileDetected:confirmedDetected},{headers:{'Cache-Control':'public, max-age=900, stale-while-revalidate=86400'}})
  }catch(e){return NextResponse.json({error:e instanceof Error?e.message:'Détail indisponible'},{status:502})}
 }
