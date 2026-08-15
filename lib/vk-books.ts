@@ -2,6 +2,7 @@ export type BookItem={topicId:number;title:string;description:string;genres:stri
 
 const UA='Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0 Safari/537.36'
 const TIMEOUT=9000
+const MAX_INDEX_PAGE=12
 const topic=(topicId:number,title:string,genres:string[],publication:string|null,tomes:string|null,origin:string|null,integratedAt:string|null=null):BookItem=>({topicId,title,description:[genres.length?`Genre : ${genres.join(', ')}`:'',publication?`Parution : ${publication}`:'',tomes?`Tomes : ${tomes}`:'',origin?`Origine : ${origin}`:'','Langue : Français'].filter(Boolean).join(' '),genres,publication,tomes,origin,language:'Français',sourceUrl:`https://vk.com/topic-203785966_${topicId}`,integratedAt,integrationOrder:topicId,isCategory:false})
 const VERIFIED:BookItem[]=[
  topic(51273578,'GUERRES & DRAGONS',['Aventure'],'Série en cours','3','Europe'),
@@ -40,4 +41,16 @@ function parsePage(html:string){const protectedHtml=html.replace(/(?:&#x27;|&#39
  return [...found.values()]}
 function urls(page:number){const first=1+Math.max(0,page)*10;const offset=Math.max(0,page);const queries=[`site:vk.com/topic-203785966_ "Au Phil Des Bulles"`,`site:vk.com/topic-203785966_ "Au Phil Des Bulles" "Genre"`,`site:vk.com/topic-203785966_ "Au Phil Des Bulles" "Langue"`];return queries.flatMap(q=>[`https://search.brave.com/search?q=${encodeURIComponent(q)}&source=web&offset=${offset}`,`https://www.bing.com/search?q=${encodeURIComponent(q)}&count=20&first=${first}&adlt=off`,`https://yandex.com/search/?text=${encodeURIComponent(q)}&p=${offset}`])}
 function score(x:BookItem){return x.genres.length*10+(x.language?8:0)+(x.publication?5:0)+(x.tomes?3:0)+(x.origin?2:0)+(x.integratedAt?2:0)+(/Genre\s*:/i.test(x.description)?4:0)}
-export async function booksPage(page=0){const pages=(await Promise.all(urls(page).map(fetchText))).filter(Boolean) as string[];const map=new Map<number,BookItem>();if(page===0)for(const item of VERIFIED)map.set(item.topicId,item);for(const html of pages)for(const item of parsePage(html)){const old=map.get(item.topicId);if(!old||score(item)>score(old)||(score(item)===score(old)&&item.description.length>old.description.length))map.set(item.topicId,item)}const all=[...map.values()].sort((a,b)=>b.integrationOrder-a.integrationOrder);const books=all.filter(x=>!x.isCategory&&x.title.trim().length>2&&x.genres.length>0&&/fran[cç]ais/i.test(x.language||x.description));const categories=[...new Set(books.flatMap(x=>x.genres))].sort((a,b)=>a.localeCompare(b,'fr'));const liveCount=page===0?Math.max(0,books.length-VERIFIED.length):books.length;return{books,categories,sourcePages:pages.length,nextPage:page===0||liveCount?page+1:null,verifiedBase:page===0?VERIFIED.length:0}}
+function usable(items:BookItem[]){return items.filter(x=>!x.isCategory&&x.title.trim().length>2&&x.genres.length>0&&/fran[cç]ais/i.test(x.language||x.description))}
+async function livePage(indexPage:number){const pages=(await Promise.all(urls(indexPage).map(fetchText))).filter(Boolean) as string[];const map=new Map<number,BookItem>();for(const html of pages)for(const item of parsePage(html)){const old=map.get(item.topicId);if(!old||score(item)>score(old)||(score(item)===score(old)&&item.description.length>old.description.length))map.set(item.topicId,item)}return{books:usable([...map.values()]).sort((a,b)=>b.integrationOrder-a.integrationOrder),sourcePages:pages.length}}
+export async function booksPage(page=0){
+ const start=Math.max(0,page);const map=new Map<number,BookItem>();if(start===0)for(const item of VERIFIED)map.set(item.topicId,item)
+ let indexPage=start;let sourcePages=0;let liveFound=0
+ for(let tries=0;tries<3&&indexPage<=MAX_INDEX_PAGE;tries++,indexPage++){
+  const live=await livePage(indexPage);sourcePages+=live.sourcePages
+  for(const item of live.books){liveFound++;const old=map.get(item.topicId);if(!old||score(item)>score(old)||(score(item)===score(old)&&item.description.length>old.description.length))map.set(item.topicId,item)}
+  if(start===0||live.books.length)break
+ }
+ const books=usable([...map.values()]).sort((a,b)=>b.integrationOrder-a.integrationOrder);const categories=[...new Set(books.flatMap(x=>x.genres))].sort((a,b)=>a.localeCompare(b,'fr'));const nextPage=indexPage<=MAX_INDEX_PAGE&&(start===0||liveFound>0)?indexPage:null
+ return{books,categories,sourcePages,nextPage,verifiedBase:start===0?VERIFIED.length:0}
+}
